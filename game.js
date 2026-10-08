@@ -98,6 +98,7 @@ const game = {
   spawnTimer: 0,
   difficulty: 'normal',
   phase: 'menu',
+  keys: { left: false, right: false },
   player: {
     x: 120,
     y: 0,
@@ -203,7 +204,7 @@ function evaluateAnswer() {
 
   const choiceIndex = Number(selected.dataset.index);
   const allChoices = document.querySelectorAll('.choice');
-  
+
   allChoices.forEach((choice, idx) => {
     choice.disabled = true;
     if (idx === correctIndex) choice.classList.add('correct');
@@ -226,11 +227,11 @@ function evaluateAnswer() {
     quizScreen.classList.add('hidden');
     game.phase = 'playing';
     game.isProcessingQuiz = false;
-    
+
     game.player.y = game.platforms[0].y - game.player.height;
     game.player.vy = 0;
     game.player.onGround = true;
-    
+
     if (game.caughtMonsterIndex >= 0 && game.caughtMonsterIndex < game.monsters.length) {
       game.monsters.splice(game.caughtMonsterIndex, 1);
     }
@@ -268,6 +269,12 @@ function handleJump() {
 }
 
 function updatePlayer(delta) {
+  const direction = (game.keys.right ? 1 : 0) - (game.keys.left ? 1 : 0);
+  const moveSpeed = 220;
+
+  game.player.x += direction * moveSpeed * delta;
+  game.player.x = Math.max(20, Math.min(game.player.x, canvas.width - game.player.width - 20));
+
   game.player.vy += game.gravity * delta;
   game.player.y += game.player.vy * delta;
   game.player.onGround = false;
@@ -518,9 +525,26 @@ restartButton.addEventListener('click', () => startRun(game.difficulty || 'norma
 answerButton.addEventListener('click', evaluateAnswer);
 
 window.addEventListener('keydown', (event) => {
+  if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+    event.preventDefault();
+    game.keys.left = true;
+  }
+  if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+    event.preventDefault();
+    game.keys.right = true;
+  }
   if (event.code === 'Space' || event.code === 'ArrowUp' || event.code === 'KeyW') {
     event.preventDefault();
     handleJump();
+  }
+});
+
+window.addEventListener('keyup', (event) => {
+  if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
+    game.keys.left = false;
+  }
+  if (event.code === 'ArrowRight' || event.code === 'KeyD') {
+    game.keys.right = false;
   }
 });
 
