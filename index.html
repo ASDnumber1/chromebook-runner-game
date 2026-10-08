@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Physics Runner Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            background: #1a1a1a;
+        }
+
+        #gameContainer {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #gameCanvas {
+            border: 2px solid #333;
+            background: linear-gradient(180deg, #87CEEB 0%, #E0F6FF 100%);
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #startScreen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: white;
+            text-align: center;
+        }
+
+        #startScreen h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+            color: #FFD700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        #startScreen p {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            max-width: 600px;
+        }
+
+        #startButton {
+            padding: 15px 40px;
+            font-size: 1.5em;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #startButton:hover {
+            background: #45a049;
+        }
+
+        #quizScreen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        #quizScreen.show {
+            display: flex;
+        }
+
+        #quizContainer {
+            background: rgba(50, 50, 50, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 600px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        #quizQuestion {
+            font-size: 1.8em;
+            margin-bottom: 30px;
+            color: #FFD700;
+        }
+
+        .quizChoices {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .quizChoice {
+            padding: 15px;
+            background: #333;
+            border: 2px solid #666;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: all 0.3s;
+            color: white;
+            text-align: left;
+        }
+
+        .quizChoice:hover {
+            background: #555;
+            border-color: #FFD700;
+        }
+
+        .quizChoice.selected {
+            background: #FFD700;
+            color: black;
+            border-color: #FFD700;
+        }
+
+        .quizChoice.correct {
+            background: #4CAF50;
+            border-color: #4CAF50;
+            color: white;
+        }
+
+        .quizChoice.incorrect {
+            background: #f44336;
+            border-color: #f44336;
+            color: white;
+        }
+
+        #hintMessage {
+            font-size: 1.1em;
+            margin: 20px 0;
+            min-height: 60px;
+            color: #FFD700;
+        }
+
+        #submitButton {
+            padding: 12px 30px;
+            font-size: 1.2em;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #submitButton:hover {
+            background: #45a049;
+        }
+
+        #submitButton:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        #gameOverScreen {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 150;
+            color: white;
+            text-align: center;
+        }
+
+        #gameOverScreen.show {
+            display: flex;
+        }
+
+        #gameOverScreen h1 {
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        #gameOverScreen p {
+            font-size: 1.3em;
+            margin-bottom: 30px;
+        }
+
+        #restartButton {
+            padding: 15px 40px;
+            font-size: 1.5em;
+            background: #FF9800;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #restartButton:hover {
+            background: #e68900;
+        }
+
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.5em;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            z-index: 50;
+        }
+
+        #timer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 1.5em;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 10px;
+            z-index: 50;
+        }
+
+        .correctPopup {
+            position: absolute;
+            color: #4CAF50;
+            font-size: 2em;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+        }
+
+        .incorrectPopup {
+            position: absolute;
+            color: #f44336;
+            font-size: 2em;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="score">Score: 0</div>
+        <div id="timer">Time: 0s</div>
+        
+        <div id="startScreen">
+            <h1>⚡ Physics Runner ⚡</h1>
+            <p>Run away from monsters and answer physics questions when caught!</p>
+            <p>Learn about Force, Friction, Inertia, Speed, Velocity, and Acceleration</p>
+            <button id="startButton">Start Game</button>
+        </div>
+
+        <div id="quizScreen">
+            <div id="quizContainer">
+                <div id="quizQuestion"></div>
+                <div class="quizChoices" id="quizChoices"></div>
+                <div id="hintMessage"></div>
+                <button id="submitButton">Submit Answer</button>
+            </div>
+        </div>
+
+        <div id="gameOverScreen">
+            <h1>Game Over!</h1>
+            <p id="finalScore">Final Score: 0</p>
+            <button id="restartButton">Play Again</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
