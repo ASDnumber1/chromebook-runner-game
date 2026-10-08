@@ -96,6 +96,7 @@ const game = {
   score: 0,
   elapsed: 0,
   spawnTimer: 0,
+  jarSpawnTimer: 0,
   difficulty: 'normal',
   phase: 'menu',
   keys: { left: false, right: false },
@@ -110,11 +111,13 @@ const game = {
     color: '#ffd166'
   },
   monsters: [],
+  jars: [],
   platforms: [],
   lastTime: 0,
   monsterId: 0,
   caughtMonsterIndex: -1,
-  isProcessingQuiz: false
+  isProcessingQuiz: false,
+  activeMonsterCount: 1
 };
 
 function buildPlatforms() {
@@ -132,7 +135,9 @@ function resetState() {
   game.score = 0;
   game.elapsed = 0;
   game.spawnTimer = 0;
+  game.jarSpawnTimer = 0;
   game.monsters = [];
+  game.jars = [];
   game.platforms = buildPlatforms();
   game.player.x = 120;
   game.player.y = game.platforms[0].y - game.player.height;
@@ -140,12 +145,13 @@ function resetState() {
   game.player.onGround = true;
   game.caughtMonsterIndex = -1;
   game.isProcessingQuiz = false;
+  game.activeMonsterCount = 1;
   updateHud();
 }
 
 function updateHud() {
   scoreBox.textContent = `Score: ${Math.floor(game.score)}`;
-  timeBox.textContent = `Time: ${Math.floor(game.elapsed)}s | ${game.difficulty.toUpperCase()}`;
+  timeBox.textContent = `Time: ${Math.floor(game.elapsed)}s | Monsters: ${game.activeMonsterCount}`;
 }
 
 function startRun(mode) {
@@ -240,24 +246,35 @@ function evaluateAnswer() {
 }
 
 function spawnMonster() {
-  const platformChoices = game.platforms.filter((p) => p.type !== 'ground');
-  const platform = platformChoices[Math.floor(Math.random() * platformChoices.length)] || game.platforms[0];
-
   const monster = {
     id: ++game.monsterId,
-    x: canvas.width + 40,
-    y: platform.y - 52,
+    x: Math.random() < 0.5 ? -50 : canvas.width + 50,
+    y: game.platforms[0].y - 52,
     width: 38,
     height: 52,
     vy: 0,
-    onGround: false,
+    onGround: true,
     jumpTimer: 0.8 + Math.random() * 1.4,
-    speed: game.worldSpeed * (game.difficulty === 'hard' ? 1.2 : 1.0) + Math.random() * 20,
+    targetPlayer: true,
+    speed: 150,
     color: ['#f56565', '#9f7aea', '#4fd1c5', '#f6ad55'][Math.floor(Math.random() * 4)],
     hasCollided: false
   };
 
   game.monsters.push(monster);
+}
+
+function spawnJar() {
+  const jar = {
+    x: Math.random() * (canvas.width - 30) + 15,
+    y: 100,
+    width: 30,
+    height: 30,
+    vy: 0,
+    onGround: false,
+    type: 'jar'
+  };
+  game.jars.push(jar);
 }
 
 function handleJump() {
@@ -306,7 +323,12 @@ function updateMonsters(delta) {
   for (let i = 0; i < game.monsters.length; i++) {
     const monster = game.monsters[i];
 
-    monster.x -= monster.speed * delta;
+    if (monster.targetPlayer) {
+      const dx = game.player.x - monster.x;
+      const direction = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+      monster.x += direction * monster.speed * delta;
+    }
+
     monster.vy += game.gravity * delta;
     monster.y += monster.vy * delta;
     monster.jumpTimer -= delta;
@@ -339,12 +361,6 @@ function updateMonsters(delta) {
 
     if (!onPlatform) {
       monster.onGround = false;
-    }
-
-    if (monster.x + monster.width < -20) {
-      game.monsters.splice(i, 1);
-      i--;
-      continue;
     }
 
     if (!monster.hasCollided && !game.isProcessingQuiz) {
@@ -380,21 +396,105 @@ function updateMonsters(delta) {
   }
 }
 
+function updateJars(delta) {
+  for (let i = 0; i < game.jars.length; i++) {
+    const jar = game.jars[i];
+
+    jar.vy += game.gravity * delta;
+    jar.y += jar.vy * delta;
+    jar.onGround = false;
+
+    for (const platform of game.platforms) {
+      const jarBottom = jar.y + jar.height;
+      const prevBottom = jar.y - jar.vy * delta + jar.height;
+
+      if (
+        jar.vy >= 0 &&
+        prevBottom <= platform.y + 8 &&
+        jarBottom >= platform.y &&
+        jar.x + jar.width > platform.x &&
+        jar.x < platform.x + platform.width
+      ) {
+        jar.y = platform.y - jar.height;
+        jar.vy = 0;
+        jar.onGround = true;
+        break;
+      }
+    }
+
+    if (jar.y > canvas.height) {
+      game.jars.splice(i, 1);
+      i--;
+      continue;
+    }
+
+    const playerRect = {
+      x: game.player.x,
+      y: game.player.y,
+      width: game.player.width,
+      height: game.player.height
+    };
+
+    const jarRect = {
+      x: jar.x,
+      y: jar.y,
+      width: jar.width,
+      height: jar.height
+    };
+
+    const colliding =
+      playerRect.x < jarRect.x + jarRect.width &&
+      playerRect.x + playerRect.width > jarRect.x &&
+      playerRect.y < jarRect.y + jarRect.height &&
+      playerRect.y + playerRect.height > jarRect.y;
+
+    if (colliding) {
+      if (game.activeMonsterCount > 1) {
+        game.activeMonsterCount--;
+        if (game.monsters.length > game.activeMonsterCount) {
+          game.monsters.pop();
+        }
+      }
+      game.jars.splice(i, 1);
+      i--;
+      updateHud();
+    }
+  }
+}
+
 function update(delta) {
   if (game.phase !== 'playing') return;
 
   game.elapsed += delta;
-  game.score += delta * 10;
+
+  const scoreMult = game.elapsed > 30 ? 2 : 1;
+  game.score += delta * 10 * scoreMult;
+
+  if (game.elapsed === 30) {
+    game.activeMonsterCount = 2;
+    spawnMonster();
+    updateHud();
+  }
+
   game.spawnTimer += delta;
+  game.jarSpawnTimer += delta;
 
   updatePlayer(delta);
 
-  if (game.spawnTimer >= (game.difficulty === 'hard' ? 1.5 : 2.2)) {
+  if (game.spawnTimer >= 3.5) {
     game.spawnTimer = 0;
-    spawnMonster();
+    if (game.monsters.length < game.activeMonsterCount) {
+      spawnMonster();
+    }
+  }
+
+  if (game.jarSpawnTimer >= 60) {
+    game.jarSpawnTimer = 0;
+    spawnJar();
   }
 
   updateMonsters(delta);
+  updateJars(delta);
   updateHud();
 }
 
@@ -494,11 +594,34 @@ function drawMonster(monster) {
   }
 }
 
+function drawJar(jar) {
+  ctx.fillStyle = '#cd7f32';
+  ctx.beginPath();
+  ctx.moveTo(jar.x + 5, jar.y + 5);
+  ctx.lineTo(jar.x + 25, jar.y + 5);
+  ctx.lineTo(jar.x + 28, jar.y + 10);
+  ctx.lineTo(jar.x + 28, jar.y + 25);
+  ctx.arc(jar.x + 15, jar.y + 25, 13, 0, Math.PI);
+  ctx.lineTo(jar.x + 2, jar.y + 25);
+  ctx.lineTo(jar.x + 2, jar.y + 10);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#8b6914';
+  ctx.fillRect(jar.x + 8, jar.y + 2, 14, 4);
+
+  ctx.fillStyle = 'rgba(255,215,0,0.6)';
+  ctx.fillRect(jar.x + 4, jar.y + 12, 22, 10);
+}
+
 function draw() {
   drawBackground();
   drawPlatforms();
 
   if (game.phase !== 'menu') {
+    for (const jar of game.jars) {
+      drawJar(jar);
+    }
     for (const monster of game.monsters) {
       drawMonster(monster);
     }
