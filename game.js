@@ -21,33 +21,30 @@ let score = 0;
 let elapsed = 0;
 let spawnTimer = 0;
 let difficulty = 1;
+let difficultyMode = 'normal'; // 'normal' or 'hard'
 
 const game = {
   width: canvas.width,
   height: canvas.height,
-  gravity: 1700,
-  groundY: 600,
-  groundHeight: 120,
-  speedBase: 420,
-  speed: 420,
+  gravity: 1200,
+  platforms: [],
   player: {
-    x: 120,
+    x: 80,
     y: 0,
-    width: 42,
-    height: 56,
+    width: 40,
+    height: 48,
     vy: 0,
-    jumpForce: 720,
+    jumpForce: 650,
     onGround: true,
-    color: '#ffb703'
+    color: '#FFD700',
+    eyeX: 12,
+    eyeY: 12
   },
-  obstacles: [],
+  monsters: [],
   particles: [],
-  monsterIndex: 0,
   quizQuestionIndex: 0,
   pausedForQuiz: false,
-  isAnswering: false,
-  questionInterval: 0,
-  slideInTimer: 0
+  quizAttempts: 0
 };
 
 const quizQuestions = [
@@ -125,32 +122,44 @@ const quizQuestions = [
   }
 ];
 
+function getRandomQuestion() {
+  return quizQuestions[Math.floor(Math.random() * quizQuestions.length)];
+}
+
+function createPlatforms() {
+  game.platforms = [
+    { x: 0, y: 650, width: 1280, height: 70, color: '#4CAF50', isGround: true },
+    { x: 100, y: 550, width: 250, height: 20, color: '#66BB6A', isGround: false },
+    { x: 500, y: 480, width: 250, height: 20, color: '#66BB6A', isGround: false },
+    { x: 900, y: 420, width: 250, height: 20, color: '#66BB6A', isGround: false },
+    { x: 250, y: 350, width: 200, height: 20, color: '#81C784', isGround: false },
+    { x: 750, y: 280, width: 200, height: 20, color: '#81C784', isGround: false }
+  ];
+}
+
 function resetGame() {
   score = 0;
   elapsed = 0;
   spawnTimer = 0;
   difficulty = 1;
-  game.speed = game.speedBase;
-  game.obstacles = [];
-  game.particles = [];
-  game.monsterIndex = 0;
-  game.questionInterval = 0;
-  game.player.x = 120;
-  game.player.y = game.groundY - game.player.height;
+  game.monsters = [];
+  game.quizAttempts = 0;
+  game.player.x = 80;
+  game.player.y = 0;
   game.player.vy = 0;
-  game.player.onGround = true;
+  game.player.onGround = false;
   game.pausedForQuiz = false;
-  game.isAnswering = false;
-  game.slideInTimer = 0;
+  createPlatforms();
   updateHUD();
 }
 
 function updateHUD() {
   scoreBox.textContent = `Score: ${Math.floor(score)}`;
-  timeBox.textContent = `Time: ${Math.floor(elapsed)}s`;
+  timeBox.textContent = `Time: ${Math.floor(elapsed)}s | Difficulty: ${difficultyMode.toUpperCase()}`;
 }
 
-function startGame() {
+function startGame(mode = 'normal') {
+  difficultyMode = mode;
   resetGame();
   gameState = 'playing';
   startScreen.classList.add('hidden');
@@ -169,18 +178,27 @@ function showGameOver() {
 }
 
 function generateMonster() {
-  const height = 40 + Math.random() * 38;
+  const platformIndex = Math.floor(Math.random() * (game.platforms.length - 1)) + 1;
+  const platform = game.platforms[platformIndex];
+  
+  let baseSpeed = difficultyMode === 'hard' ? 350 : 280;
+  let diffMultiplier = difficultyMode === 'hard' ? 1.15 : 1.08;
+  
   const monster = {
     x: canvas.width + 50,
-    y: game.groundY - height,
-    width: 48,
-    height,
-    speed: game.speed + 30 + Math.random() * 70,
-    color: ['#5f0f40', '#7b2cbf', '#2a9d8f', '#ef476f'][Math.floor(Math.random() * 4)],
+    y: platform.y - 50,
+    width: 45,
+    height: 50,
+    vy: 0,
+    onGround: false,
+    speed: baseSpeed + (difficulty * diffMultiplier),
+    color: ['#e74c3c', '#9b59b6', '#1abc9c', '#e67e22'][Math.floor(Math.random() * 4)],
     hasTriggered: false,
-    kind: 'monster'
+    currentPlatform: null,
+    jumpTimer: 0,
+    direction: -1
   };
-  game.obstacles.push(monster);
+  game.monsters.push(monster);
 }
 
 function handleJump() {
@@ -195,12 +213,12 @@ function triggerQuiz() {
   if (game.pausedForQuiz) return;
   game.pausedForQuiz = true;
   gameState = 'quiz';
+  game.quizAttempts = 0;
   showQuestion();
 }
 
 function showQuestion() {
-  const q = quizQuestions[game.quizQuestionIndex % quizQuestions.length];
-  game.quizQuestionIndex += 1;
+  const q = getRandomQuestion();
 
   quizQuestion.textContent = q.question;
   choicesContainer.innerHTML = '';
@@ -247,60 +265,157 @@ function evaluateAnswer() {
   answerButton.disabled = true;
 
   if (selectedIndex === correctIndex) {
-    quizFeedback.textContent = 'Correct! Great job!';
-    score += 40;
+    quizFeedback.textContent = 'Correct! Great job! 🎉';
+    score += 50;
     updateHUD();
+    
+    setTimeout(() => {
+      quizScreen.classList.remove('visible');
+      game.pausedForQuiz = false;
+      gameState = 'playing';
+      
+      // Reset player position to ground
+      game.player.y = game.platforms[0].y - game.player.height;
+      game.player.vy = 0;
+      game.player.onGround = true;
+      
+      // Remove triggered monsters
+      game.monsters = game.monsters.filter((m) => !m.hasTriggered);
+      
+      requestAnimationFrame(gameLoop);
+    }, 1800);
   } else {
-    quizFeedback.textContent = 'Not quite. Sentence clue: ' + clue;
-    score = Math.max(0, score - 15);
+    quizFeedback.textContent = 'Not quite. Clue: ' + clue;
+    score = Math.max(0, score - 20);
     updateHUD();
+    
+    setTimeout(() => {
+      quizScreen.classList.remove('visible');
+      game.pausedForQuiz = false;
+      gameState = 'playing';
+      
+      // Reset player position to ground
+      game.player.y = game.platforms[0].y - game.player.height;
+      game.player.vy = 0;
+      game.player.onGround = true;
+      
+      // Remove triggered monsters
+      game.monsters = game.monsters.filter((m) => !m.hasTriggered);
+      
+      requestAnimationFrame(gameLoop);
+    }, 1800);
   }
+}
 
-  setTimeout(() => {
-    quizScreen.classList.remove('visible');
-    game.pausedForQuiz = false;
-    gameState = 'playing';
-    game.player.y = game.groundY - game.player.height;
-    game.player.vy = 0;
-    game.player.onGround = true;
-    game.obstacles = game.obstacles.filter((obstacle) => !obstacle.hasTriggered);
-  }, 1600);
+function checkPlatformCollision(x, y, width, height) {
+  for (const platform of game.platforms) {
+    if (
+      x + width > platform.x &&
+      x < platform.x + platform.width &&
+      y + height >= platform.y &&
+      y + height <= platform.y + 25 &&
+      game.player.vy >= 0
+    ) {
+      return { platform, onGround: true };
+    }
+  }
+  return null;
+}
+
+function checkMonsterPlatformCollision(monster) {
+  for (const platform of game.platforms) {
+    if (
+      monster.x + monster.width > platform.x &&
+      monster.x < platform.x + platform.width &&
+      monster.y + monster.height >= platform.y &&
+      monster.y + monster.height <= platform.y + 25 &&
+      monster.vy >= 0
+    ) {
+      return platform;
+    }
+  }
+  return null;
 }
 
 function update(delta) {
   if (gameState !== 'playing') return;
 
   elapsed += delta;
-  score += delta * 8;
+  score += delta * 10;
+  
+  const difficultyLevel = 1 + Math.floor(elapsed / 15);
+  difficulty = difficultyLevel;
 
-  const difficultyLevel = 1 + Math.floor(elapsed / 12);
-  game.speed = game.speedBase + difficultyLevel * 16;
-
+  // Update player
   game.player.vy += game.gravity * delta;
   game.player.y += game.player.vy * delta;
 
-  if (game.player.y >= game.groundY - game.player.height) {
-    game.player.y = game.groundY - game.player.height;
+  // Check platform collision for player
+  const collision = checkPlatformCollision(game.player.x, game.player.y, game.player.width, game.player.height);
+  if (collision) {
+    game.player.y = collision.platform.y - game.player.height;
     game.player.vy = 0;
     game.player.onGround = true;
+  } else {
+    game.player.onGround = false;
   }
 
+  // Kill player if falls off screen
+  if (game.player.y > canvas.height) {
+    showGameOver();
+    return;
+  }
+
+  // Spawn monsters
   spawnTimer += delta;
-  if (spawnTimer >= Math.max(1.2, 2.2 - difficultyLevel * 0.18)) {
+  const spawnRate = difficultyMode === 'hard' ? 1.8 : 2.5;
+  if (spawnTimer >= Math.max(1.0, spawnRate - difficultyLevel * 0.15)) {
     spawnTimer = 0;
     generateMonster();
   }
 
-  for (let i = game.obstacles.length - 1; i >= 0; i--) {
-    const obstacle = game.obstacles[i];
-    obstacle.x -= obstacle.speed * delta;
+  // Update monsters
+  for (let i = game.monsters.length - 1; i >= 0; i--) {
+    const monster = game.monsters[i];
+    
+    monster.vy += game.gravity * delta;
+    monster.y += monster.vy * delta;
+    monster.x += monster.direction * monster.speed * delta;
 
-    if (obstacle.x + obstacle.width < -20) {
-      game.obstacles.splice(i, 1);
+    // Monster platform collision
+    const monsterPlatform = checkMonsterPlatformCollision(monster);
+    if (monsterPlatform) {
+      monster.y = monsterPlatform.y - monster.height;
+      monster.vy = 0;
+      monster.onGround = true;
+      monster.currentPlatform = monsterPlatform;
+      
+      // Monster jumps randomly
+      monster.jumpTimer -= delta;
+      if (monster.jumpTimer <= 0) {
+        monster.vy = -580;
+        monster.onGround = false;
+        monster.jumpTimer = 1.5 + Math.random() * 1;
+      }
+    } else {
+      monster.onGround = false;
+    }
+
+    // Remove if off screen
+    if (monster.x < -100 || monster.y > canvas.height) {
+      game.monsters.splice(i, 1);
       continue;
     }
 
-    if (!obstacle.hasTriggered) {
+    // Check collision with player
+    if (!monster.hasTriggered) {
+      const monsterRect = {
+        x: monster.x,
+        y: monster.y,
+        width: monster.width,
+        height: monster.height
+      };
+
       const playerRect = {
         x: game.player.x,
         y: game.player.y,
@@ -308,21 +423,15 @@ function update(delta) {
         height: game.player.height
       };
 
-      const obstacleRect = {
-        x: obstacle.x,
-        y: obstacle.y,
-        width: obstacle.width,
-        height: obstacle.height
-      };
-
-      const intersects = playerRect.x < obstacleRect.x + obstacleRect.width &&
-        playerRect.x + playerRect.width > obstacleRect.x &&
-        playerRect.y < obstacleRect.y + obstacleRect.height &&
-        playerRect.y + playerRect.height > obstacleRect.y;
+      const intersects = playerRect.x < monsterRect.x + monsterRect.width &&
+        playerRect.x + playerRect.width > monsterRect.x &&
+        playerRect.y < monsterRect.y + monsterRect.height &&
+        playerRect.y + playerRect.height > monsterRect.y;
 
       if (intersects) {
-        obstacle.hasTriggered = true;
+        monster.hasTriggered = true;
         triggerQuiz();
+        break;
       }
     }
   }
@@ -331,62 +440,138 @@ function update(delta) {
 }
 
 function drawBackground() {
-  ctx.fillStyle = '#7ec8ff';
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, '#87CEEB');
+  gradient.addColorStop(1, '#E0F6FF');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  ctx.fillStyle = '#9ad6ff';
-  for (let i = 0; i < 40; i++) {
-    const x = (i * 80 + (elapsed * 16) % 80) % (canvas.width + 80) - 40;
-    const y = 60 + (i * 17) % 180;
+  // Clouds
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+  for (let i = 0; i < 5; i++) {
+    const x = (i * 300 + (elapsed * 30) % 300) % (canvas.width + 100);
+    const y = 80 + (i * 50) % 150;
     ctx.beginPath();
-    ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2);
+    ctx.arc(x, y, 30, 0, Math.PI * 2);
+    ctx.arc(x + 40, y - 10, 40, 0, Math.PI * 2);
+    ctx.arc(x + 80, y, 30, 0, Math.PI * 2);
     ctx.fill();
   }
+}
 
-  ctx.fillStyle = '#8ecf63';
-  ctx.fillRect(0, game.groundY, canvas.width, game.groundHeight);
-
-  ctx.fillStyle = '#64a643';
-  for (let x = 0; x < canvas.width; x += 32) {
-    ctx.fillRect(x, game.groundY + 25, 20, 10);
+function drawPlatforms() {
+  for (const platform of game.platforms) {
+    ctx.fillStyle = platform.color;
+    ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+    
+    // Platform detail
+    ctx.fillStyle = platform.isGround ? '#2d5016' : '#2e7d32';
+    for (let x = platform.x; x < platform.x + platform.width; x += 40) {
+      ctx.fillRect(x, platform.y + platform.height - 8, 30, 8);
+    }
   }
 }
 
 function drawPlayer() {
   const { x, y, width, height } = game.player;
+  
+  // Body
   ctx.fillStyle = game.player.color;
-  ctx.fillRect(x, y, width, height);
-
-  ctx.fillStyle = '#1f2937';
-  ctx.fillRect(x + 10, y + 8, 8, 8);
-  ctx.fillRect(x + 24, y + 8, 8, 8);
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(x + 12, y + 10, 2, 2);
-  ctx.fillRect(x + 26, y + 10, 2, 2);
+  ctx.beginPath();
+  ctx.moveTo(x + width / 2, y);
+  ctx.lineTo(x + width, y + height * 0.6);
+  ctx.lineTo(x + width, y + height);
+  ctx.lineTo(x, y + height);
+  ctx.lineTo(x, y + height * 0.6);
+  ctx.closePath();
+  ctx.fill();
+  
+  // Head
+  ctx.fillStyle = game.player.color;
+  ctx.beginPath();
+  ctx.arc(x + width / 2, y + 10, 12, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(x + width / 2 - 6, y + 8, 3, 0, Math.PI * 2);
+  ctx.arc(x + width / 2 + 6, y + 8, 3, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Mouth
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x + width / 2, y + 12, 3, 0, Math.PI);
+  ctx.stroke();
+  
+  // Arms
+  ctx.strokeStyle = game.player.color;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(x + 2, y + height * 0.4);
+  ctx.lineTo(x - 8, y + height * 0.3);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x + width - 2, y + height * 0.4);
+  ctx.lineTo(x + width + 8, y + height * 0.3);
+  ctx.stroke();
 }
 
-function drawMonster(obstacle) {
-  ctx.fillStyle = obstacle.color;
-  ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
-
-  ctx.fillStyle = '#2b2d42';
-  ctx.fillRect(obstacle.x + 8, obstacle.y + 10, 8, 8);
-  ctx.fillRect(obstacle.x + obstacle.width - 16, obstacle.y + 10, 8, 8);
-
+function drawMonster(monster) {
+  const { x, y, width, height } = monster;
+  
+  // Body
+  ctx.fillStyle = monster.color;
+  ctx.fillRect(x, y + 10, width, height - 10);
+  
+  // Head
+  ctx.beginPath();
+  ctx.arc(x + width / 2, y + 8, 12, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Eyes
   ctx.fillStyle = '#fff';
-  ctx.fillRect(obstacle.x + 10, obstacle.y + 12, 3, 3);
-  ctx.fillRect(obstacle.x + obstacle.width - 13, obstacle.y + 12, 3, 3);
-
+  ctx.beginPath();
+  ctx.arc(x + width / 2 - 6, y + 5, 4, 0, Math.PI * 2);
+  ctx.arc(x + width / 2 + 6, y + 5, 4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Pupils
   ctx.fillStyle = '#000';
-  ctx.fillRect(obstacle.x + 14, obstacle.y + 24, obstacle.width - 28, 6);
+  ctx.beginPath();
+  ctx.arc(x + width / 2 - 6, y + 6, 2, 0, Math.PI * 2);
+  ctx.arc(x + width / 2 + 6, y + 6, 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // Mouth
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x + width / 2 - 4, y + 12);
+  ctx.lineTo(x + width / 2 + 4, y + 12);
+  ctx.stroke();
+  
+  // Spikes
+  ctx.fillStyle = monster.color;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + 5 + i * 15, y);
+    ctx.lineTo(x + 10 + i * 15, y - 8);
+    ctx.lineTo(x + 15 + i * 15, y);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
 function draw() {
   drawBackground();
+  drawPlatforms();
 
   if (gameState === 'playing' || gameState === 'quiz') {
-    for (const obstacle of game.obstacles) {
-      drawMonster(obstacle);
+    for (const monster of game.monsters) {
+      drawMonster(monster);
     }
     drawPlayer();
   }
@@ -403,12 +588,8 @@ function gameLoop(timestamp) {
 
   draw();
 
-  if (gameState === 'playing') {
+  if (gameState === 'playing' || gameState === 'menu') {
     requestAnimationFrame(gameLoop);
-  } else if (gameState === 'menu') {
-    requestAnimationFrame(gameLoop);
-  } else if (gameState === 'over') {
-    return;
   }
 }
 
@@ -419,10 +600,10 @@ window.addEventListener('keydown', (event) => {
   }
 });
 
-startButton.addEventListener('click', startGame);
+startButton.addEventListener('click', () => startGame('normal'));
 restartButton.addEventListener('click', () => {
   gameOverScreen.classList.add('hidden');
-  startGame();
+  startGame(difficultyMode);
 });
 answerButton.addEventListener('click', evaluateAnswer);
 
