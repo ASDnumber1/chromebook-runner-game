@@ -33,6 +33,7 @@
             position: absolute;
             top: 0;
             left: 0;
+            display: block;
         }
 
         #startScreen {
@@ -47,6 +48,10 @@
             z-index: 100;
             color: white;
             text-align: center;
+        }
+
+        #startScreen.hidden {
+            display: none;
         }
 
         #startScreen h1 {
@@ -92,7 +97,7 @@
             text-align: center;
         }
 
-        #quizScreen.show {
+        #quizScreen.visible {
             display: flex;
         }
 
@@ -110,14 +115,14 @@
             color: #FFD700;
         }
 
-        .quizChoices {
+        #choices {
             display: flex;
             flex-direction: column;
             gap: 15px;
             margin-bottom: 30px;
         }
 
-        .quizChoice {
+        .choice {
             padding: 15px;
             background: #333;
             border: 2px solid #666;
@@ -129,37 +134,37 @@
             text-align: left;
         }
 
-        .quizChoice:hover {
+        .choice:hover {
             background: #555;
             border-color: #FFD700;
         }
 
-        .quizChoice.selected {
+        .choice.selected {
             background: #FFD700;
             color: black;
             border-color: #FFD700;
         }
 
-        .quizChoice.correct {
+        .choice.correct {
             background: #4CAF50;
             border-color: #4CAF50;
             color: white;
         }
 
-        .quizChoice.incorrect {
+        .choice.incorrect {
             background: #f44336;
             border-color: #f44336;
             color: white;
         }
 
-        #hintMessage {
+        #quizFeedback {
             font-size: 1.1em;
             margin: 20px 0;
             min-height: 60px;
             color: #FFD700;
         }
 
-        #submitButton {
+        #quizAnswerButton {
             padding: 12px 30px;
             font-size: 1.2em;
             background: #4CAF50;
@@ -170,11 +175,11 @@
             transition: background 0.3s;
         }
 
-        #submitButton:hover {
+        #quizAnswerButton:hover {
             background: #45a049;
         }
 
-        #submitButton:disabled {
+        #quizAnswerButton:disabled {
             background: #666;
             cursor: not-allowed;
         }
@@ -191,6 +196,10 @@
             z-index: 150;
             color: white;
             text-align: center;
+        }
+
+        #gameOverScreen.hidden {
+            display: none;
         }
 
         #gameOverScreen.show {
@@ -222,7 +231,7 @@
             background: #e68900;
         }
 
-        #score {
+        #scoreBox {
             position: absolute;
             top: 20px;
             left: 20px;
@@ -234,7 +243,7 @@
             z-index: 50;
         }
 
-        #timer {
+        #timeBox {
             position: absolute;
             top: 20px;
             right: 20px;
@@ -245,31 +254,13 @@
             border-radius: 10px;
             z-index: 50;
         }
-
-        .correctPopup {
-            position: absolute;
-            color: #4CAF50;
-            font-size: 2em;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-            pointer-events: none;
-        }
-
-        .incorrectPopup {
-            position: absolute;
-            color: #f44336;
-            font-size: 2em;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
-            pointer-events: none;
-        }
     </style>
 </head>
 <body>
     <div id="gameContainer">
-        <canvas id="gameCanvas"></canvas>
-        <div id="score">Score: 0</div>
-        <div id="timer">Time: 0s</div>
+        <canvas id="gameCanvas" width="1280" height="720"></canvas>
+        <div id="scoreBox">Score: 0</div>
+        <div id="timeBox">Time: 0s</div>
         
         <div id="startScreen">
             <h1>⚡ Physics Runner ⚡</h1>
@@ -281,15 +272,15 @@
         <div id="quizScreen">
             <div id="quizContainer">
                 <div id="quizQuestion"></div>
-                <div class="quizChoices" id="quizChoices"></div>
-                <div id="hintMessage"></div>
-                <button id="submitButton">Submit Answer</button>
+                <div id="choices"></div>
+                <div id="quizFeedback"></div>
+                <button id="quizAnswerButton">Submit Answer</button>
             </div>
         </div>
 
-        <div id="gameOverScreen">
+        <div id="gameOverScreen" class="hidden">
             <h1>Game Over!</h1>
-            <p id="finalScore">Final Score: 0</p>
+            <p id="finalScoreText">Final Score: 0</p>
             <button id="restartButton">Play Again</button>
         </div>
     </div>
